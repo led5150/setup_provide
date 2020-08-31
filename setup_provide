@@ -1,0 +1,254 @@
+#!/usr/bin/python3
+
+import argparse
+from pathlib import Path
+import os
+import subprocess
+import shutil
+import re
+import linecache
+from time import sleep
+import fileinput
+
+
+COURSE = 15
+BASEDIR=Path(f"/comp/{COURSE}/grading")
+ASSGN_CONF = BASEDIR / "assignments.conf"
+
+
+def main(assign, date, time, minfiles, numfiles, files, num_sub, status):
+    os.umask(0o022) 
+
+    args = (assign, date, time, minfiles, numfiles, files, num_sub, status)
+    TESTSET    = BASEDIR / f"tests/{assign}/bin/testset"
+    EXCEPTIONS = BASEDIR / f"{assign}/exceptions.conf"
+
+    # find the assignment and either create new or modify an existing one
+    config = find_assignment(assign)
+    if config == None:
+        add_assignment(create_config(args))
+        launch_editor("assignments.config", ASSGN_CONF, find_line_num(ASSGN_CONF))
+    else:
+        modify_config(config, args)
+        launch_editor("assignments.config", ASSGN_CONF, config[0])
+
+    create_testset(assign, files)
+    launch_editor(TESTSET, TESTSET, 0)
+    prozac(assign, COURSE)
+    add_exception(EXCEPTIONS) 
+
+
+def add_exception(EXCEPTIONS):
+    """
+    adds exception for mkorma01 account to allow for testing
+    """
+    with open(f"{EXCEPTIONS}", "a") as f:
+        f.write("login=mkorma01 status=on duedate=12/25 duetime=11:59pm submissions=10000 ")
+
+
+def find_line_num(file):
+    """
+    returns the last line number of a file - 1 so we can open vim to a nice line
+    """
+    index = 0
+    with open(file, "r") as f:
+        for i in enumerate(f):
+            index = i[0]
+    return index - 1
+
+
+def create_testset(assign, files):
+    """
+    copies setup_testset to the assignment folder and makes the appropriate edits
+    adding in required files passed in by user and updating the assignment name
+    """
+    new_testset = BASEDIR / f'tests/{assign}/bin/testset'
+    setupLegacyFolders(assign)
+    shutil.copyfile(BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
+    subprocess.run(['chmod', '770', new_testset]) # change permissions on testset
+    filenames = ' '.join([str(elem) for elem in files]) # make str from list
+    # edit testset
+    subprocess.run(["sed", "-i", f"s/ASSIGN_NAME/{assign}/g", f"{new_testset}"])
+    subprocess.run(["sed", "-i", f"s/REQUIRED_FILES/{filenames}/g", f"{new_testset}"])
+ 
+
+def ignore_line_continuations(i, line):
+    """
+    opens assignment.conf at the line number 'i' and if there is a line 
+    continuation, effectively ignores it and grabs the next line until there is
+    no line continuation found
+    """
+    if not line.endswith("\\\n"):
+        return i, line.rstrip()
+    i += 1
+    line += linecache.getline(f"{ASSGN_CONF}", i)
+    return ignore_line_continuations(i, line)
+
+
+def find_assignment(assign):
+    """
+    Finds the assignment if it exists and returns the config.
+    Always returns last found assignment. Ex. in assignment.conf:
+    assign=hw4 submissions=5 duedate=3/11 
+    assign=hw4 submissions=9999 duedate=12/25 <--- This would be returned
+    """
+    found_assignment = None
+    pattern = "assign=" + assign
+    with open(ASSGN_CONF) as f:
+        for i, line in enumerate(f):
+            if not line.startswith("\n") and re.match("[a-z#]", line):
+                assign_config = ignore_line_continuations(i + 1, line)
+                if re.search(r'\b' + pattern + r'\b', assign_config[1]):
+                    found_assignment = (
+                        i + 1, assign_config[0], assign_config[1]
+                    )
+    return found_assignment
+    
+def launch_editor(file, path, line_num):
+    """
+    launches vim and has user verify and save file.
+    """
+    print(f"Launching Vim on file: {file}. Verify edits, then save and quit to continue.")
+    sleep(3)
+    subprocess.run(["vim", f"+{line_num}", path])
+
+def add_assignment(config, start=None, end=None):
+    """
+    adds the assignment to assignments.conf
+    """
+    if start is None and end is None:
+        with open(f"{ASSGN_CONF}", "a") as f:
+            f.write("\n" + config)
+    else:
+        # Assignment exists, so we are overwritting with our new config
+        with open(f"{ASSGN_CONF}", "r") as f:
+            data = f.readlines()
+        with open(f"{ASSGN_CONF}", "w") as f:
+            f.writelines(data[0:start - 1])
+            f.write(config + "\n")
+            f.writelines(data[end:])
+   
+
+
+def create_config(args):
+    """
+    returns a string of a new config built from the user passed in args
+    """
+    minf = ""
+    numf = ""
+    config = "assign="+ args[0] + " " + "submissions=" + args[6] + " " \
+           + "duedate=" + args[1] + " " + "duetime=" + args[2] + " "
+
+    if args[3]:
+        minf = "minfiles=" + args[3] + " "
+    if args[4]:
+        numf = "files=" + args[4] + " "
+    config += minf + numf + "status=" + args[7] + " " + "\\\n" + "\t" + "prepare=screening/bin/check_files"
+    return config
+
+
+def modify_config(config, args):
+    """
+    modifies and existing assignment in assignments.conf
+    """
+    start_line = config[0]
+    end_line = config[1]
+    assign_config = config[2]
+    if assign_config.startswith('#'):
+        print("Assignment exists but is commented out. Quitting")
+        exit()
+    # in case we want to prompt for uncommenting an assignment:
+    #     reply = input(
+    #         "Assignment exists but is commented out. Uncomment? (y/n) "
+    #     )
+    #     if reply == ('y'):
+    #         assign_config = assign_config.replace('#', '')
+
+    # create a dict out of the current config
+    config_split = {}
+    assign_config = assign_config.replace("\t", "").replace("\\\n", "")
+    for field in assign_config.split(" "):
+        if re.match("[a-z]+", field):
+            config_split[field.split("=")[0]] = field.split("=")[1]
+
+    # Find any matching fields in the config built from user args, update 
+    # any existing values and add any new key/value pairs
+    for field in create_config(args).split(" "):
+        field_split = field.replace("\t", "").replace("\\\n", "").split("=")
+        config_split[field_split[0]] = field_split[1]
+
+    # create string of updated config 
+    updated_config = ""
+    for field in config_split:
+        if field == "prepare":
+            updated_config += "\\\n\t"
+        updated_config += field + "=" + config_split[field] + " "
+
+    add_assignment(updated_config, start_line, end_line)
+
+
+
+
+def setupLegacyFolders(assign):
+    """
+        Sets up a list of folders that are used by 
+        /comp/15/grading/gtools/grade
+
+        Not currently in use, but set up as a fallback
+    """
+    testdir = BASEDIR / f'tests/{assign}'
+    testdir.mkdir(exist_ok=True)
+    for x in ["bin", "copy", "cpp", "input", "output", "makefile"]:
+        testdir = BASEDIR / f'tests/{assign}/{x}'
+        testdir.mkdir(exist_ok=True)
+
+
+def prozac(assign, course):
+    """
+        Runs prozac, which sets up /comp/15/grading/HWID and assures
+        correct permissions
+    """
+    subprocess.run(["prozac", f"comp{course}", assign])
+
+    # TODO: Error checking? assert(proc.returncode == 0)
+    #           Silence prozac, check to see if error reported in exit code
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='Helps you set up an assignment'
+    )
+    requiredArgs = parser.add_argument_group('required arguments')
+    requiredArgs.add_argument(
+        '-a', required=True, dest='assign', help='Assignment name e.g. hw1'
+    )
+    requiredArgs.add_argument(
+        '-d',
+        required=True,
+        dest='date',
+        help='Date in form of MM/DD e.g. 12/25'
+    )
+    requiredArgs.add_argument(
+        '-t',
+        required=True,
+        dest='time',
+        help='Time in form of HH:MM e.g. 15:00'
+    )
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--minfiles', help="Minimum number of files required")
+    group.add_argument('--numfiles', help="Number of files required")
+    parser.add_argument(
+        '--status',
+        help="Status of assignment. Default is 'off'",
+        default='off',
+        choices=[
+            "on",
+            "off",
+        ]
+    )
+    parser.add_argument('files', nargs='*',\
+                        help='Names of required files.')
+    parser.add_argument('-ns', dest='num_sub', default='5',\
+                        help='Number of submissions allowed per student. Default: 5.')
+
+    main(**vars(parser.parse_args()))

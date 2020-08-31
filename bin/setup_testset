@@ -1,0 +1,46 @@
+# ASSIGN_NAME testset
+#
+# Syntax: 
+#        * comment lines start with #
+#        * all action lines are of the format
+#                {WARN|FAIL}   cmd   args
+#
+#                * cmd can be any unix command OR a built-in
+#                * the built-ins are
+#                     require      [@fail_script] filename ...
+#                                  asserts that all listed files are present 
+#                                  runs fail_script if not
+#                     not_allowed  shell-wildcard-pattern
+#                                  checks that files matching 
+#                     allow        filename ...
+#                     filetype     shell-wildcard-pattern RE
+#                     path_pre     string
+#                                  Appends string to front of path
+#                     path_post    string
+#                                  Appends string to front of path
+#
+# (complete documentation found in $GRADINGROOT/screening/bin/check_files)
+# 
+# "$GRADINGROOT/screening/testprogs", "$GRADINGROOT/screening/bin", 
+#  and "$GRADINGROOT/grading/gtools" are in $PATH.
+
+
+# 2015-01-27 made filetype check FAIL in response to rsangh submission
+# FAIL	check_rh_ver
+
+FAIL	token_check
+WARN	echo Token History:
+WARN    tms show $STUDENT
+
+FAIL	require	REQUIRED_FILES
+
+
+# Usage: compile_student [--assert-exec=EXEC_NAME] compilationCMD ...
+
+
+WARN submit_to_gradescope.py -c COURSE_ID \
+                             -a ASSIGNMENT_ID \
+                             --logfile .response \
+                             --token $GRADING_ROOT/screening/bin/.gradescope_token
+
+

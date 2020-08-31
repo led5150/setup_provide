@@ -1,0 +1,97 @@
+#!/bin/bash
+#this is the standard checkfiles script
+# and  will be overwritten by setup_provide
+
+hw=/comp//grading/tests/
+hwBin=
+gtools=/comp//grading/gtools
+failed_tests=""
+provide_cpp=yes
+assignment=HWNAME # setup_provide should replace to assignment name = HWNAME
+echo
+#uncomment these lines if you want to add the makefile on the server side
+#make sure there is a makefile directory with the file Makefile if you do this!
+#furthermore, that makefile should have a rule to create the executable named the
+#same thing as the value of hwBin
+#echo ".......Adding Makefile to Submission Directory......."
+#cp /comp/15/grading/tests/HwNAME/makefile/Makefile .
+
+echo "......Backing up Files......"
+# copy all files to a backup directory
+mkdir backup
+cp ./* backup 2>/dev/null
+
+# Screening for homeworks
+# Checks if assignment is a homework (starts with hw) 
+# Or is the second week of a project (ends with wk2)
+if echo $assignment | grep -qP '(^hw|wk2$)'; then
+        # attempt a make
+        echo ".......Running Make......."
+        make ${hwBin} &>make_output.txt
+        # chmod ug+x ${hwBin}
+
+        if [ ! -s make_output.txt ]; then
+                echo "Something went wrong: make_output.txt does not exist, or is of size 0."
+                echo "Make sure that your Makefile is compiling properly and resubmit."
+        else
+                # grep for errors and warnings
+                errors=$(grep -i "\(error\|errors\)" make_output.txt)
+                warnings=$(grep -i "\(warning\|warnings\)" make_output.txt)
+                stop=$(grep -i "\(Stop\|Stop\)" make_output.txt)
+
+                if [ -z "$errors" ]; then
+                        echo "No errors!"
+                else
+                        echo "----------Your program did not compile.----------"
+                        cat make_output.txt
+                        echo
+                        exit 1
+                fi
+                if [ -z "$stop" ]; then
+                        echo "Congrats! Your program compiled properly."
+                else
+                        echo "-----------The compiler encountered a stopping condition.----------"
+                        failed_tests+="compiler warnings, "
+                        cat make_output.txt
+                        echo
+                        echo "Your program did not compile properly (found a stopping condition)."
+                        echo "Your program should compile without stopping condition."
+                        exit 1
+                fi
+
+                if [ -z "$warnings" ]; then
+                        echo "No warnings!"
+                else
+                        echo "-----------Your program produced compiler warnings.----------"
+                        failed_tests+="compiler warnings, "
+                        cat make_output.txt
+                        echo
+                        echo "This submission will count, but you may lose points because of"
+                        echo "the warnings. Your program should compile with no warnings."
+                fi
+        fi
+#Screening for labs
+# Checks if lab can be found in assignement name
+elif echo $assignment | grep -q 'lab'; then
+        #verify that student attempted to complete the lab
+        echo "......Verifying  Files......."
+
+        # Setup-provide should use sed to replace HWNAME with actual assignment
+        # name
+        src=/comp/15/files/HWNAME
+
+        for student in "$(pwd)"/backup/*; do
+                starter="$src/$(basename "$student")"
+
+                # If submission is in anyway different from source code
+                # Either submits a file that doesn't exist in starter code
+                # Or file isn't the same as file in starter code
+                if ! [ -f "$starter" ] || [ -n "$(diff "$student" "$starter")" ]; then
+                        exit 0
+                fi
+        done
+
+        echo "Please complete the lab before submitting"
+        exit 1
+fi
+
