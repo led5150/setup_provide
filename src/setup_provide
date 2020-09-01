@@ -1,33 +1,35 @@
 #!/usr/bin/python3
 
 import argparse
-from pathlib import Path
-import os
-import subprocess
-import shutil
-import re
-import linecache
-from time import sleep
 import fileinput
-
+import linecache
+import os
+import re
+import shutil
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from time import sleep
 
 COURSE = 15
-BASEDIR=Path(f"/comp/{COURSE}/grading")
+BASEDIR = Path(f"/comp/{COURSE}/grading")
 ASSGN_CONF = BASEDIR / "assignments.conf"
 
 
 def main(assign, date, time, minfiles, numfiles, files, num_sub, status):
-    os.umask(0o022) 
+    os.umask(0o022)
 
     args = (assign, date, time, minfiles, numfiles, files, num_sub, status)
-    TESTSET    = BASEDIR / f"tests/{assign}/bin/testset"
+    TESTSET = BASEDIR / f"tests/{assign}/bin/testset"
     EXCEPTIONS = BASEDIR / f"{assign}/exceptions.conf"
 
     # find the assignment and either create new or modify an existing one
     config = find_assignment(assign)
     if config == None:
         add_assignment(create_config(args))
-        launch_editor("assignments.config", ASSGN_CONF, find_line_num(ASSGN_CONF))
+        launch_editor(
+            "assignments.config", ASSGN_CONF, find_line_num(ASSGN_CONF)
+        )
     else:
         modify_config(config, args)
         launch_editor("assignments.config", ASSGN_CONF, config[0])
@@ -35,7 +37,7 @@ def main(assign, date, time, minfiles, numfiles, files, num_sub, status):
     create_testset(assign, files)
     launch_editor(TESTSET, TESTSET, 0)
     prozac(assign, COURSE)
-    add_exception(EXCEPTIONS) 
+    add_exception(EXCEPTIONS)
 
 
 def add_exception(EXCEPTIONS):
@@ -43,7 +45,9 @@ def add_exception(EXCEPTIONS):
     adds exception for mkorma01 account to allow for testing
     """
     with open(f"{EXCEPTIONS}", "a") as f:
-        f.write("login=mkorma01 status=on duedate=12/25 duetime=11:59pm submissions=10000 ")
+        f.write(
+            "login=mkorma01 status=on duedate=12/25 duetime=11:59pm submissions=10000 "
+        )
 
 
 def find_line_num(file):
@@ -64,13 +68,19 @@ def create_testset(assign, files):
     """
     new_testset = BASEDIR / f'tests/{assign}/bin/testset'
     setupLegacyFolders(assign)
-    shutil.copyfile(BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
-    subprocess.run(['chmod', '770', new_testset]) # change permissions on testset
-    filenames = ' '.join([str(elem) for elem in files]) # make str from list
+    shutil.copyfile(
+        BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset
+    )
+    subprocess.run(
+        ['chmod', '770', new_testset]
+    )  # change permissions on testset
+    filenames = ' '.join([str(elem) for elem in files])  # make str from list
     # edit testset
     subprocess.run(["sed", "-i", f"s/ASSIGN_NAME/{assign}/g", f"{new_testset}"])
-    subprocess.run(["sed", "-i", f"s/REQUIRED_FILES/{filenames}/g", f"{new_testset}"])
- 
+    subprocess.run(
+        ["sed", "-i", f"s/REQUIRED_FILES/{filenames}/g", f"{new_testset}"]
+    )
+
 
 def ignore_line_continuations(i, line):
     """
@@ -103,14 +113,18 @@ def find_assignment(assign):
                         i + 1, assign_config[0], assign_config[1]
                     )
     return found_assignment
-    
+
+
 def launch_editor(file, path, line_num):
     """
     launches vim and has user verify and save file.
     """
-    print(f"Launching Vim on file: {file}. Verify edits, then save and quit to continue.")
+    print(
+        f"Launching Vim on file: {file}. Verify edits, then save and quit to continue."
+    )
     sleep(3)
     subprocess.run(["vim", f"+{line_num}", path])
+
 
 def add_assignment(config, start=None, end=None):
     """
@@ -127,7 +141,6 @@ def add_assignment(config, start=None, end=None):
             f.writelines(data[0:start - 1])
             f.write(config + "\n")
             f.writelines(data[end:])
-   
 
 
 def create_config(args):
@@ -143,7 +156,8 @@ def create_config(args):
         minf = "minfiles=" + args[3] + " "
     if args[4]:
         numf = "files=" + args[4] + " "
-    config += minf + numf + "status=" + args[7] + " " + "\\\n" + "\t" + "prepare=screening/bin/check_files"
+    config += minf + numf + "status=" + args[
+        7] + " " + "\\\n" + "\t" + "prepare=screening/bin/check_files"
     return config
 
 
@@ -171,13 +185,13 @@ def modify_config(config, args):
         if re.match("[a-z]+", field):
             config_split[field.split("=")[0]] = field.split("=")[1]
 
-    # Find any matching fields in the config built from user args, update 
+    # Find any matching fields in the config built from user args, update
     # any existing values and add any new key/value pairs
     for field in create_config(args).split(" "):
         field_split = field.replace("\t", "").replace("\\\n", "").split("=")
         config_split[field_split[0]] = field_split[1]
 
-    # create string of updated config 
+    # create string of updated config
     updated_config = ""
     for field in config_split:
         if field == "prepare":
@@ -185,8 +199,6 @@ def modify_config(config, args):
         updated_config += field + "=" + config_split[field] + " "
 
     add_assignment(updated_config, start_line, end_line)
-
-
 
 
 def setupLegacyFolders(assign):
@@ -214,6 +226,20 @@ def prozac(assign, course):
     #           Silence prozac, check to see if error reported in exit code
 
 
+def verifyDateTime(dtFormat):
+    def verifier(value):
+        try:
+            datetime.strptime(value, dtFormat)
+            return value
+        except ValueError:
+            pass
+        raise argparse.ArgumentTypeError(
+            f"{value} doesn't match format {dtFormat}"
+        )
+
+    return verifier
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Helps you set up an assignment'
@@ -226,13 +252,15 @@ if __name__ == "__main__":
         '-d',
         required=True,
         dest='date',
-        help='Date in form of MM/DD e.g. 12/25'
+        help='Date in form of MM/DD e.g. 12/25',
+        type=verifyDateTime("%m/%y")
     )
     requiredArgs.add_argument(
         '-t',
         required=True,
         dest='time',
-        help='Time in form of HH:MM e.g. 15:00'
+        help='Time in form of HH:MM e.g. 15:00',
+        type=verifyDateTime("%H:%M")
     )
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--minfiles', help="Minimum number of files required")
