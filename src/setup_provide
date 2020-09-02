@@ -133,11 +133,15 @@ def launch_editor(path, line_num=0):
     """
     launches vim and has user verify and save file.
     """
-    print(
-        f"Launching Vim on file: {path}. Verify edits, then save and quit to continue."
-    )
-    sleep(3)
-    subprocess.run(["vim", f"+{line_num}", path])
+    print(f'Opening "{path}". Close file to continue.')
+
+    cmd = ["code", "--wait", "--goto", f'{path}:{line_num}']
+
+    if not shutil.which("code"):
+        sleep(3)
+        cmd = ["vim", f"+{line_num}", path]
+
+    subprocess.run(cmd)
 
 
 def add_assignment(configDict, start=None, end=None):
