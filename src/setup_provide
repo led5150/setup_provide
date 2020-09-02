@@ -5,15 +5,18 @@ import os
 import re
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import chain
 from pathlib import Path
 from time import sleep
+
+from gradescope_web import GradescopeSession
 
 COURSE = 15
 BASEDIR = Path(f"/comp/{COURSE}/grading")
 ASSIGN_CONF = BASEDIR / "assignments.conf"
 GROUP = "grade15"
+MAXLATEDAYS = 2
 
 
 def main(
@@ -41,7 +44,8 @@ def main(
     launch_editor(ASSIGN_CONF, start)
 
     setupLegacyFolders(assign)
-    create_testset(assign, reqFiles)
+    courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
+    create_testset(assign, reqFiles, courseId, assignId)
     launch_editor(TESTSET)
     prozac(COURSE, assign)
     add_exception(EXCEPTIONS)
@@ -57,7 +61,7 @@ def add_exception(EXCEPTIONS):
         )
 
 
-def create_testset(assign, files):
+def create_testset(assign, files, courseId, assignId):
     """
     copies setup_testset to the assignment folder and makes the appropriate edits
     adding in required files passed in by user and updating the assignment name
@@ -68,11 +72,15 @@ def create_testset(assign, files):
     shutil.chown(new_testset, group=GROUP)
     new_testset.chmod(0o770)
     # edit testset
-    filenames = ' '.join(files)
-    subprocess.run(["sed", "-i", f"s/ASSIGN_NAME/{assign}/g", f"{new_testset}"])
-    subprocess.run(
-        ["sed", "-i", f"s/REQUIRED_FILES/{filenames}/g", f"{new_testset}"]
-    )
+    replacements = [
+        arg for key, val in {
+            "ASSIGN_NAME": assign,
+            "REQUIRED_FILES": ' '.join(files),
+            "COURSE_ID": courseId,
+            "ASSIGNMENT_ID": assignId
+        }.items() for arg in ['-e', f's/{key}/{val}/g']
+    ]
+    subprocess.run(["sed", "-i", *replacements, f"{new_testset}"])
 
 
 def getEntireConfig(fileIterator):
@@ -196,6 +204,42 @@ def verifyDateTime(dtFormat):
         )
 
     return verifier
+
+
+def getGradescopeIDs(assign, duedate, duetime):
+    g = GradescopeSession()
+    dueDateTime = datetime.strptime(f'{duedate} {duetime}',
+                                    '%m/%d %H:%M').replace(
+                                        year=datetime.now().year
+                                    )
+
+    hideUntil = dueDateTime + timedelta(days=MAXLATEDAYS)
+
+    # TODO: Refactor out name and semester (no hard coding)
+    course = next(
+        (
+            c for c in g.classes if c.role == "instructor" and
+            c.name == "Comp 15" and c.semester == "Fall 2020"
+        ), None
+    )
+
+    if not course:
+        raise ValueError("Don't have access to course on Gradescope")
+
+    assignment = next((a for a in course.assignments if a.name == assign), None)
+
+    if not assignment:
+        assignment = course.create_assignment(
+            title=assign,
+            totalPoints=0,
+            releaseDate=hideUntil,
+            dueDate=hideUntil,
+            manualGrading=True,
+            memoryLimit=6144,
+            autograderTimeout=600
+        )
+
+    return course.id, assignment.id
 
 
 if __name__ == "__main__":
