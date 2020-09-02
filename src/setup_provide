@@ -1,42 +1,49 @@
 #!/usr/bin/python3
 
 import argparse
-import fileinput
-import linecache
 import os
 import re
 import shutil
 import subprocess
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 from time import sleep
 
 COURSE = 15
 BASEDIR = Path(f"/comp/{COURSE}/grading")
-ASSGN_CONF = BASEDIR / "assignments.conf"
+ASSIGN_CONF = BASEDIR / "assignments.conf"
+GROUP = "grade15"
 
 
-def main(assign, date, time, minfiles, numfiles, files, num_sub, status):
-    os.umask(0o022)
+def main(
+    assign, duedate, duetime, minfiles, files, reqFiles, submissions, status
+):
+    userConfig = {
+        k: v
+        for k, v in locals().items() if v is not None and k != "reqFiles"
+    }
+    os.umask(0o002)
 
-    args = (assign, date, time, minfiles, numfiles, files, num_sub, status)
-    TESTSET = BASEDIR / f"tests/{assign}/bin/testset"
+    TESTSET = BASEDIR / f"screening/testsets/{assign}"
     EXCEPTIONS = BASEDIR / f"{assign}/exceptions.conf"
 
-    # find the assignment and either create new or modify an existing one
-    config = find_assignment(assign)
-    if config == None:
-        add_assignment(create_config(args))
-        launch_editor(
-            "assignments.config", ASSGN_CONF, find_line_num(ASSGN_CONF)
-        )
-    else:
-        modify_config(config, args)
-        launch_editor("assignments.config", ASSGN_CONF, config[0])
+    foundConfig, (start, end) = find_assignment(assign)
+    newConfig = {
+        **{
+            "prepare": "screening/bin/check_files"
+        },
+        **foundConfig,
+        **userConfig
+    }
 
-    create_testset(assign, files)
-    launch_editor(TESTSET, TESTSET, 0)
-    prozac(assign, COURSE)
+    add_assignment(newConfig, start, end)
+    launch_editor(ASSIGN_CONF, start)
+
+    setupLegacyFolders(assign)
+    create_testset(assign, reqFiles)
+    launch_editor(TESTSET)
+    prozac(COURSE, assign)
     add_exception(EXCEPTIONS)
 
 
@@ -50,155 +57,105 @@ def add_exception(EXCEPTIONS):
         )
 
 
-def find_line_num(file):
-    """
-    returns the last line number of a file - 1 so we can open vim to a nice line
-    """
-    index = 0
-    with open(file, "r") as f:
-        for i in enumerate(f):
-            index = i[0]
-    return index - 1
-
-
 def create_testset(assign, files):
     """
     copies setup_testset to the assignment folder and makes the appropriate edits
     adding in required files passed in by user and updating the assignment name
     """
-    new_testset = BASEDIR / f'tests/{assign}/bin/testset'
-    setupLegacyFolders(assign)
-    shutil.copyfile(
-        BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset
-    )
-    subprocess.run(
-        ['chmod', '770', new_testset]
-    )  # change permissions on testset
-    filenames = ' '.join([str(elem) for elem in files])  # make str from list
+    new_testset = BASEDIR / f"screening/testsets/{assign}"
+
+    shutil.copy2(BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
+    shutil.chown(new_testset, group=GROUP)
+    new_testset.chmod(0o770)
     # edit testset
+    filenames = ' '.join(files)
     subprocess.run(["sed", "-i", f"s/ASSIGN_NAME/{assign}/g", f"{new_testset}"])
     subprocess.run(
         ["sed", "-i", f"s/REQUIRED_FILES/{filenames}/g", f"{new_testset}"]
     )
 
 
-def ignore_line_continuations(i, line):
+def getEntireConfig(fileIterator):
     """
-    opens assignment.conf at the line number 'i' and if there is a line 
-    continuation, effectively ignores it and grabs the next line until there is
-    no line continuation found
+        Grabs all lines from iterator until first non continued line
+        returns (endingLineno, lines)
     """
+    lineno, line = next(fileIterator)
     if not line.endswith("\\\n"):
-        return i, line.rstrip()
-    i += 1
-    line += linecache.getline(f"{ASSGN_CONF}", i)
-    return ignore_line_continuations(i, line)
+        return lineno, line.rstrip()
+    end, suffix = getEntireConfig(fileIterator)
+    return end, line + suffix
 
 
 def find_assignment(assign):
     """
-    Finds the assignment if it exists and returns the config.
-    Always returns last found assignment. Ex. in assignment.conf:
-    assign=hw4 submissions=5 duedate=3/11 
-    assign=hw4 submissions=9999 duedate=12/25 <--- This would be returned
+        Finds the assignment if it exists and returns the config.
+        Always returns last found assignment. 
+        Ex. in assignment.conf:
+            assign=hw4 submissions=5 duedate=3/11
+            assign=hw4 submissions=9999 duedate=12/25 <--- returned
+
+        Returns (assignDict, (    start,       end))   if found
+                (        {}, (eofLineno, eofLineno))   if not found
     """
     found_assignment = None
     pattern = "assign=" + assign
-    with open(ASSGN_CONF) as f:
-        for i, line in enumerate(f):
-            if not line.startswith("\n") and re.match("[a-z#]", line):
-                assign_config = ignore_line_continuations(i + 1, line)
-                if re.search(r'\b' + pattern + r'\b', assign_config[1]):
-                    found_assignment = (
-                        i + 1, assign_config[0], assign_config[1]
-                    )
-    return found_assignment
+    with open(ASSIGN_CONF) as f:
+        fileIter = enumerate(f, 1)
+        for lineNum, line in fileIter:
+            if line.isspace():
+                continue
+
+            endNum, conf = getEntireConfig(chain([(lineNum, line)], fileIter))
+
+            if re.search(r'\b' + pattern + r'\b', conf):
+                found_assignment = (config2dict(conf), (lineNum, endNum))
+
+    eofNum = max(lineNum, endNum) + 1
+    return found_assignment if found_assignment else ({}, (eofNum, eofNum))
 
 
-def launch_editor(file, path, line_num):
+def config2dict(config):
+    config = config.replace("\\\n", " ")
+    return dict(field.split("=", 1) for field in config.split())
+
+
+def dict2config(configDict):
+    updated_config = ""
+    for field, value in sorted(configDict.items(), key=lambda x: x[0]):
+        if field == "prepare":
+            updated_config += "\\\n\t"
+        updated_config += field + "=" + value + " "
+    return updated_config
+
+
+def launch_editor(path, line_num=0):
     """
     launches vim and has user verify and save file.
     """
     print(
-        f"Launching Vim on file: {file}. Verify edits, then save and quit to continue."
+        f"Launching Vim on file: {path}. Verify edits, then save and quit to continue."
     )
     sleep(3)
     subprocess.run(["vim", f"+{line_num}", path])
 
 
-def add_assignment(config, start=None, end=None):
+def add_assignment(configDict, start=None, end=None):
     """
     adds the assignment to assignments.conf
     """
-    if start is None and end is None:
-        with open(f"{ASSGN_CONF}", "a") as f:
-            f.write("\n" + config)
-    else:
-        # Assignment exists, so we are overwritting with our new config
-        with open(f"{ASSGN_CONF}", "r") as f:
-            data = f.readlines()
-        with open(f"{ASSGN_CONF}", "w") as f:
-            f.writelines(data[0:start - 1])
-            f.write(config + "\n")
-            f.writelines(data[end:])
+    config = dict2config(configDict)
 
-
-def create_config(args):
-    """
-    returns a string of a new config built from the user passed in args
-    """
-    minf = ""
-    numf = ""
-    config = "assign="+ args[0] + " " + "submissions=" + args[6] + " " \
-           + "duedate=" + args[1] + " " + "duetime=" + args[2] + " "
-
-    if args[3]:
-        minf = "minfiles=" + args[3] + " "
-    if args[4]:
-        numf = "files=" + args[4] + " "
-    config += minf + numf + "status=" + args[
-        7] + " " + "\\\n" + "\t" + "prepare=screening/bin/check_files"
-    return config
-
-
-def modify_config(config, args):
-    """
-    modifies and existing assignment in assignments.conf
-    """
-    start_line = config[0]
-    end_line = config[1]
-    assign_config = config[2]
-    if assign_config.startswith('#'):
-        print("Assignment exists but is commented out. Quitting")
-        exit()
-    # in case we want to prompt for uncommenting an assignment:
-    #     reply = input(
-    #         "Assignment exists but is commented out. Uncomment? (y/n) "
-    #     )
-    #     if reply == ('y'):
-    #         assign_config = assign_config.replace('#', '')
-
-    # create a dict out of the current config
-    config_split = {}
-    assign_config = assign_config.replace("\t", "").replace("\\\n", "")
-    for field in assign_config.split(" "):
-        if re.match("[a-z]+", field):
-            config_split[field.split("=")[0]] = field.split("=")[1]
-
-    # Find any matching fields in the config built from user args, update
-    # any existing values and add any new key/value pairs
-    for field in create_config(args).split(" "):
-        field_split = field.replace("\t", "").replace("\\\n", "").split("=")
-        config_split[field_split[0]] = field_split[1]
-
-    # create string of updated config
-    updated_config = ""
-    for field in config_split:
-        if field == "prepare":
-            updated_config += "\\\n\t"
-        updated_config += field + "=" + config_split[field] + " "
-
-    add_assignment(updated_config, start_line, end_line)
+    # Assignment exists, so we are overwritting with our new config
+    with ASSIGN_CONF.open() as f:
+        data = f.readlines()
+    with ASSIGN_CONF.open("w") as f:
+        f.writelines(data[0:start - 1])
+        # Add newline if file doesn't end with a newline
+        if start > len(data) and not data[-1].endswith("\n"):
+            f.write("\n")
+        f.write(config + "\n")
+        f.writelines(data[end:])
 
 
 def setupLegacyFolders(assign):
@@ -209,21 +166,18 @@ def setupLegacyFolders(assign):
         Not currently in use, but set up as a fallback
     """
     testdir = BASEDIR / f'tests/{assign}'
-    testdir.mkdir(exist_ok=True)
     for x in ["bin", "copy", "cpp", "input", "output", "makefile"]:
-        testdir = BASEDIR / f'tests/{assign}/{x}'
-        testdir.mkdir(exist_ok=True)
+        (testdir / x).mkdir(parents=True, exist_ok=True)
+        shutil.chown(testdir / x, group=GROUP)
+    shutil.chown(testdir, group=GROUP)
 
 
-def prozac(assign, course):
+def prozac(course, assign):
     """
         Runs prozac, which sets up /comp/15/grading/HWID and assures
         correct permissions
     """
     subprocess.run(["prozac", f"comp{course}", assign])
-
-    # TODO: Error checking? assert(proc.returncode == 0)
-    #           Silence prozac, check to see if error reported in exit code
 
 
 def verifyDateTime(dtFormat):
@@ -251,20 +205,22 @@ if __name__ == "__main__":
     requiredArgs.add_argument(
         '-d',
         required=True,
-        dest='date',
+        dest='duedate',
         help='Date in form of MM/DD e.g. 12/25',
-        type=verifyDateTime("%m/%y")
+        type=verifyDateTime("%m/%d")
     )
     requiredArgs.add_argument(
         '-t',
         required=True,
-        dest='time',
+        dest='duetime',
         help='Time in form of HH:MM e.g. 15:00',
         type=verifyDateTime("%H:%M")
     )
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--minfiles', help="Minimum number of files required")
-    group.add_argument('--numfiles', help="Number of files required")
+    group.add_argument(
+        '--numfiles', dest='files', help="Number of files required"
+    )
     parser.add_argument(
         '--status',
         help="Status of assignment. Default is 'off'",
@@ -274,9 +230,9 @@ if __name__ == "__main__":
             "off",
         ]
     )
-    parser.add_argument('files', nargs='*',\
+    parser.add_argument('reqFiles', metavar='files', nargs='*',\
                         help='Names of required files.')
-    parser.add_argument('-ns', dest='num_sub', default='5',\
+    parser.add_argument('-ns', dest='submissions', default='5',\
                         help='Number of submissions allowed per student. Default: 5.')
 
     main(**vars(parser.parse_args()))
