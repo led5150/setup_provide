@@ -64,6 +64,10 @@ def main(
 
 
 def showHeader(string):
+    """
+        Prints out a formatted section header.
+        (Formatting is omitted if stdout isn't a tty)
+    """
     string = "\n* " + string
     if sys.stdout.isatty():
         string = colored(string.replace(" ", "_"), attrs=['bold', 'underline'])
@@ -72,7 +76,7 @@ def showHeader(string):
 
 def add_exception(EXCEPTIONS):
     """
-    adds exception for mkorma01 account to allow for testing
+        adds exception for mkorma01 account to allow for testing
     """
     with EXCEPTIONS.open("a") as f:
         f.write(
@@ -82,8 +86,9 @@ def add_exception(EXCEPTIONS):
 
 def create_testset(assign, files, courseId, assignId):
     """
-    copies setup_testset to the assignment folder and makes the appropriate edits
-    adding in required files passed in by user and updating the assignment name
+        Copies template testset into testset directory.
+        Replaces some placeholder strings in template with appropriate
+        values
     """
     new_testset = BASEDIR / ("screening/testsets/" + assign)
     shutil.copy2(
@@ -177,7 +182,7 @@ def launch_editor(path, line_num=0):
 
 def add_assignment(configDict, start=None, end=None):
     """
-    adds the assignment to assignments.conf
+        adds the assignment to assignments.conf
     """
     config = dict2config(configDict)
 
@@ -247,7 +252,7 @@ def getGradescopeIDs(assign, duedate, duetime):
     )
 
     if not course:
-        raise ValueError("Don't have access to course on Gradescope")
+        raise ValueError("You don't have access to course on Gradescope")
 
     assignment = next((a for a in course.assignments if a.name == assign), None)
 
