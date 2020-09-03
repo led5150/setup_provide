@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import argparse
 import os
@@ -15,7 +15,7 @@ from gradescope_web import GradescopeSession
 from termcolor import colored
 
 COURSE = 15
-BASEDIR = Path(f"/comp/{COURSE}/grading")
+BASEDIR = Path("/comp/" + str(COURSE) + "/grading")
 ASSIGN_CONF = BASEDIR / "assignments.conf"
 GROUP = "grade15"
 MAXLATEDAYS = 2
@@ -30,8 +30,8 @@ def main(
     }
     os.umask(0o002)
 
-    TESTSET = BASEDIR / f"screening/testsets/{assign}"
-    EXCEPTIONS = BASEDIR / f"{assign}/exceptions.conf"
+    TESTSET = BASEDIR / ("screening/testsets/" + assign)
+    EXCEPTIONS = BASEDIR / (assign + "/exceptions.conf")
 
     foundConfig, (start, end) = find_assignment(assign)
     newConfig = {
@@ -74,7 +74,7 @@ def add_exception(EXCEPTIONS):
     """
     adds exception for mkorma01 account to allow for testing
     """
-    with open(f"{EXCEPTIONS}", "a") as f:
+    with EXCEPTIONS.open("a") as f:
         f.write(
             "login=mkorma01 status=on duedate=12/25 duetime=11:59pm submissions=10000 "
         )
@@ -85,10 +85,14 @@ def create_testset(assign, files, courseId, assignId):
     copies setup_testset to the assignment folder and makes the appropriate edits
     adding in required files passed in by user and updating the assignment name
     """
-    new_testset = BASEDIR / f"screening/testsets/{assign}"
-
-    shutil.copy2(BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
-    shutil.chown(new_testset, group=GROUP)
+    new_testset = BASEDIR / ("screening/testsets/" + assign)
+    shutil.copy2(
+        *map(
+            str,
+            (BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
+        )
+    )
+    shutil.chown(str(new_testset), group=GROUP)
     new_testset.chmod(0o770)
     # edit testset
     replacements = [
@@ -97,9 +101,9 @@ def create_testset(assign, files, courseId, assignId):
             "REQUIRED_FILES": ' '.join(files),
             "COURSE_ID": courseId,
             "ASSIGNMENT_ID": assignId
-        }.items() for arg in ['-e', f's/{key}/{val}/g']
+        }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
     ]
-    subprocess.run(["sed", "-i", *replacements, f"{new_testset}"])
+    subprocess.run(["sed", "-i", *replacements, str(new_testset)])
 
 
 def getEntireConfig(fileIterator):
@@ -127,7 +131,7 @@ def find_assignment(assign):
     """
     found_assignment = None
     pattern = "assign=" + assign
-    with open(ASSIGN_CONF) as f:
+    with ASSIGN_CONF.open() as f:
         fileIter = enumerate(f, 1)
         for lineNum, line in fileIter:
             if line.isspace():
@@ -160,13 +164,13 @@ def launch_editor(path, line_num=0):
     """
         launches a text editor, returns after file is closed.
     """
-    print(f'Opening "{path}".\n\nEdit file if needed, close to continue.')
+    print("Opening {}.\n\nEdit file if needed, close to continue.".format(path))
 
-    cmd = ["code", "--wait", "--goto", f'{path}:{line_num}']
+    cmd = ["code", "--wait", "--goto", '{}:{}'.format(path, line_num)]
 
     if not shutil.which("code"):
         sleep(3)
-        cmd = ["vim", f"+{line_num}", path]
+        cmd = ["vim", "+" + str(line_num), path]
 
     subprocess.run(cmd)
 
@@ -196,11 +200,11 @@ def setupLegacyFolders(assign):
 
         Not currently in use, but set up as a fallback
     """
-    testdir = BASEDIR / f'tests/{assign}'
+    testdir = BASEDIR / ('tests/' + assign)
     for x in ["bin", "copy", "cpp", "input", "output", "makefile"]:
         (testdir / x).mkdir(parents=True, exist_ok=True)
-        shutil.chown(testdir / x, group=GROUP)
-    shutil.chown(testdir, group=GROUP)
+        shutil.chown(str(testdir / x), group=GROUP)
+    shutil.chown(str(testdir), group=GROUP)
 
 
 def prozac(course, assign):
@@ -208,7 +212,7 @@ def prozac(course, assign):
         Runs prozac, which sets up /comp/15/grading/HWID and assures
         correct permissions
     """
-    subprocess.run(["prozac", f"comp{course}", assign])
+    subprocess.run(["prozac", "comp" + str(course), assign])
 
 
 def verifyDateTime(dtFormat):
@@ -219,7 +223,7 @@ def verifyDateTime(dtFormat):
         except ValueError:
             pass
         raise argparse.ArgumentTypeError(
-            f"{value} doesn't match format {dtFormat}"
+            value + " doesn't match format " + dtFormat
         )
 
     return verifier
@@ -227,7 +231,7 @@ def verifyDateTime(dtFormat):
 
 def getGradescopeIDs(assign, duedate, duetime):
     g = GradescopeSession()
-    dueDateTime = datetime.strptime(f'{duedate} {duetime}',
+    dueDateTime = datetime.strptime(duedate + " " + duetime,
                                     '%m/%d %H:%M').replace(
                                         year=datetime.now().year
                                     )
