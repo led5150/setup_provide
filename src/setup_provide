@@ -90,15 +90,13 @@ def create_testset(assign, files, courseId, assignId):
         Replaces some placeholder strings in template with appropriate
         values
     """
-    new_testset = BASEDIR / ("screening/testsets/" + assign)
-    shutil.copy2(
-        *map(
-            str,
-            (BASEDIR / "tests/setup-provide/bin/setup_testset", new_testset)
-        )
-    )
-    shutil.chown(str(new_testset), group=GROUP)
-    new_testset.chmod(0o770)
+    # TODO make this relative to this script
+    templateTestset = BASEDIR / "tests/setup-provide/bin/setup_testset"
+    newTestset = BASEDIR / ("screening/testsets/" + assign)
+
+    shutil.copy2(str(templateTestset), str(newTestset))
+    shutil.chown(str(newTestset), group=GROUP)
+    newTestset.chmod(0o770)
     # edit testset
     replacements = [
         arg for key, val in {
@@ -108,7 +106,7 @@ def create_testset(assign, files, courseId, assignId):
             "ASSIGNMENT_ID": assignId
         }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
     ]
-    subprocess.run(["sed", "-i", *replacements, str(new_testset)])
+    subprocess.run(["sed", "-i", *replacements, str(newTestset)])
 
 
 def getEntireConfig(fileIterator):
