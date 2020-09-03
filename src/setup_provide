@@ -53,7 +53,7 @@ def main(
     create_testset(assign, reqFiles, courseId, assignId)
     launch_editor(TESTSET)
 
-    showHeader("Running prozac")
+    showHeader("Running prozac (creates folder for submissions)")
     prozac(COURSE, assign)
 
     showHeader("Setting up legacy testing folders (optional)")
@@ -214,7 +214,25 @@ def prozac(course, assign):
         Runs prozac, which sets up /comp/15/grading/HWID and assures
         correct permissions
     """
-    subprocess.run(["prozac", "comp" + str(course), assign])
+    result = subprocess.run(
+        ["prozac", "comp" + str(course), assign],
+        stdout=subprocess.PIPE,
+        universal_newlines=True
+    )
+
+    assignBlock = re.search("[+]{20}.+[+]{20}", result.stdout, re.DOTALL)
+
+    def isOkay(output):
+        return (
+            # Exited normally
+            result.returncode == 0 and
+            # Assignment could be parsed by prozac
+            assignBlock and
+            # No errors occurred
+            not re.search(r"total of \d+ errors found!  FIX THESE!", output)
+        )
+
+    print(assignBlock.group() if isOkay(result.stdout) else result.stdout)
 
 
 def verifyDateTime(dtFormat):
