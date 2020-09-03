@@ -5,12 +5,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from itertools import chain
 from pathlib import Path
 from time import sleep
 
 from gradescope_web import GradescopeSession
+from termcolor import colored
 
 COURSE = 15
 BASEDIR = Path(f"/comp/{COURSE}/grading")
@@ -40,15 +42,32 @@ def main(
         **userConfig
     }
 
+    showHeader("Configuring assignment.conf")
+
     add_assignment(newConfig, start, end)
     launch_editor(ASSIGN_CONF, start)
 
+    showHeader("Setting up legacy testing folders")
     setupLegacyFolders(assign)
+
+    showHeader("Setting up gradescope assignment")
     courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
+
+    showHeader("Configuring testset")
     create_testset(assign, reqFiles, courseId, assignId)
     launch_editor(TESTSET)
+
+    showHeader("Running prozac")
     prozac(COURSE, assign)
+
     add_exception(EXCEPTIONS)
+
+
+def showHeader(string):
+    string = "\n* " + string
+    if sys.stdout.isatty():
+        string = colored(string.replace(" ", "_"), attrs=['bold', 'underline'])
+    print(string, end="\n\n")
 
 
 def add_exception(EXCEPTIONS):
@@ -139,9 +158,9 @@ def dict2config(configDict):
 
 def launch_editor(path, line_num=0):
     """
-    launches vim and has user verify and save file.
+        launches a text editor, returns after file is closed.
     """
-    print(f'Opening "{path}". Close file to continue.')
+    print(f'Opening "{path}".\n\nEdit file if needed, close to continue.')
 
     cmd = ["code", "--wait", "--goto", f'{path}:{line_num}']
 
