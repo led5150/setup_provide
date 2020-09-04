@@ -9,6 +9,7 @@ import sys
 from datetime import datetime, timedelta
 from itertools import chain
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import sleep
 
 from gradescope_web import GradescopeSession
@@ -90,10 +91,14 @@ def create_testset(assign, files, courseId, assignId):
         Copies template testset into testset directory.
         Replaces some placeholder strings in template with appropriate
         values
+        If an existing testset is present, changes are merged into existing
     """
     # TODO make this relative to this script
     templateTestset = str(BASEDIR / "tests/setup-provide/bin/setup_testset")
-    newTestset = BASEDIR / ("screening/testsets/" + assign)
+    testset = BASEDIR / ("screening/testsets/" + assign)
+    # make a tempfile if a testset already exists
+    tempFile = NamedTemporaryFile() if testset.exists() else None
+    newTestset = tempFile.name if tempFile else str(testset)
 
     shutil.copy2(templateTestset, newTestset)
     shutil.chown(newTestset, group=GROUP)
@@ -108,6 +113,15 @@ def create_testset(assign, files, courseId, assignId):
         }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
     ]
     subprocess.run(["sed", "-i", *replacements, newTestset])
+
+    if tempFile:
+        subprocess.run(
+            [
+                "git", "merge-file", str(testset), templateTestset, newTestset,
+                "--theirs"
+            ]
+        )
+        tempFile.close()
 
 
 def getEntireConfig(fileIterator):
