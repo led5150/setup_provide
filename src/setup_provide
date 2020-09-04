@@ -92,12 +92,12 @@ def create_testset(assign, files, courseId, assignId):
         values
     """
     # TODO make this relative to this script
-    templateTestset = BASEDIR / "tests/setup-provide/bin/setup_testset"
+    templateTestset = str(BASEDIR / "tests/setup-provide/bin/setup_testset")
     newTestset = BASEDIR / ("screening/testsets/" + assign)
 
-    shutil.copy2(str(templateTestset), str(newTestset))
-    shutil.chown(str(newTestset), group=GROUP)
-    newTestset.chmod(0o770)
+    shutil.copy2(templateTestset, newTestset)
+    shutil.chown(newTestset, group=GROUP)
+    os.chmod(newTestset, 0o770)
     # edit testset
     replacements = [
         arg for key, val in {
@@ -107,7 +107,7 @@ def create_testset(assign, files, courseId, assignId):
             "ASSIGNMENT_ID": assignId
         }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
     ]
-    subprocess.run(["sed", "-i", *replacements, str(newTestset)])
+    subprocess.run(["sed", "-i", *replacements, newTestset])
 
 
 def getEntireConfig(fileIterator):
