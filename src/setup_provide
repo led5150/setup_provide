@@ -32,8 +32,10 @@ def main(
 
     TESTSET = BASEDIR / ("screening/testsets/" + assign)
     EXCEPTIONS = BASEDIR / (assign + "/exceptions.conf")
-
-    foundConfig, (start, end) = find_assignment(assign)
+    foundConfig, region = getLastWhere(
+        ASSIGN_CONF,
+        re.compile(r'\bassign=%s\b' % assign).search
+    )
     newConfig = {
         **{
             "prepare": "screening/bin/check_files"
@@ -43,8 +45,8 @@ def main(
     }
 
     showHeader("Configuring assignment.conf")
-    add_assignment(newConfig, start, end)
-    launch_editor(ASSIGN_CONF, start)
+    addToConfFile(newConfig, ASSIGN_CONF, *region)
+    launch_editor(ASSIGN_CONF, region[0])
 
     showHeader("Setting up gradescope assignment")
     courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
@@ -120,20 +122,19 @@ def getEntireConfig(fileIterator):
     return end, line + suffix
 
 
-def find_assignment(assign):
+def getLastWhere(conffile, predicate):
     """
-        Finds the assignment if it exists and returns the config.
-        Always returns last found assignment. 
-        Ex. in assignment.conf:
+        Returns last config in .conf file accepted by the predicate function
+
+        Ex. in assignment.conf if predicate accepts config where assign=hw4:
             assign=hw4 submissions=5 duedate=3/11
             assign=hw4 submissions=9999 duedate=12/25 <--- returned
 
         Returns (assignDict, (    start,       end))   if found
                 (        {}, (eofLineno, eofLineno))   if not found
     """
-    found_assignment = None
-    pattern = "assign=" + assign
-    with ASSIGN_CONF.open() as f:
+    foundConfig = None
+    with Path(conffile).open() as f:
         fileIter = enumerate(f, 1)
         for lineNum, line in fileIter:
             if line.isspace():
@@ -141,11 +142,11 @@ def find_assignment(assign):
 
             endNum, conf = getEntireConfig(chain([(lineNum, line)], fileIter))
 
-            if re.search(r'\b' + pattern + r'\b', conf):
-                found_assignment = (config2dict(conf), (lineNum, endNum))
+            if predicate(conf):
+                foundConfig = (config2dict(conf), (lineNum, endNum))
 
     eofNum = max(lineNum, endNum) + 1
-    return found_assignment if found_assignment else ({}, (eofNum, eofNum))
+    return foundConfig if foundConfig else ({}, (eofNum, eofNum))
 
 
 def config2dict(config):
@@ -177,16 +178,16 @@ def launch_editor(path, line_num=0):
     subprocess.run(cmd)
 
 
-def add_assignment(configDict, start=None, end=None):
+def addToConfFile(configDict, conffile, start, end):
     """
-        adds the assignment to assignments.conf
+        adds config to .conf file
     """
     config = dict2config(configDict)
 
     # Assignment exists, so we are overwritting with our new config
-    with ASSIGN_CONF.open() as f:
+    with Path(conffile).open() as f:
         data = f.readlines()
-    with ASSIGN_CONF.open("w") as f:
+    with Path(conffile).open("w") as f:
         f.writelines(data[0:start - 1])
         # Add newline if file doesn't end with a newline
         if start > len(data) and not data[-1].endswith("\n"):
