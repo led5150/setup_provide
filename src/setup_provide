@@ -80,10 +80,23 @@ def add_exception(EXCEPTIONS):
     """
         adds exception for mkorma01 account to allow for testing
     """
-    with EXCEPTIONS.open("a") as f:
-        f.write(
-            "login=mkorma01 status=on duedate=12/25 duetime=11:59pm submissions=10000 "
-        )
+    TESTACCOUNT="mkorma01"
+    foundConfig, region = getLastWhere(
+        EXCEPTIONS,
+        re.compile(r'\blogin=%s\b' % TESTACCOUNT).search
+    )
+    newConfig = {
+        **foundConfig,
+        **{
+            "login": TESTACCOUNT,
+            "status": "on",
+            "duedate": "12/25",
+            "duetime": "11:59pm",
+            "submissions": "10000"
+        }
+    }
+
+    addToConfFile(newConfig, EXCEPTIONS, *region)
 
 
 def create_testset(assign, files, courseId, assignId):
