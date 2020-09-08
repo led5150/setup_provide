@@ -37,8 +37,10 @@ def main(
         ASSIGN_CONF,
         re.compile(r'\bassign=%s\b' % assign).search
     )
-
-    fix_conflicts(userConfig, foundConfig)
+    # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
+    # any args of that type in an existing config.
+    if any(key in userConfig for key in ["files", "minfiles"]):
+        foundConfig.pop("files" if "minfiles" in userConfig else "minfiles", None) 
 
     newConfig = {
         **{
@@ -67,13 +69,6 @@ def main(
 
     add_exception(EXCEPTIONS)
 
-def fix_conflicts(userConfig, foundConfig):
-    """
-        Makes "files" and "minfiles" mutually exclusive. Prefers 
-        user config options in that regard to any existing config.
-    """
-    if any(key in userConfig for key in ["files", "minfiles"]):
-        foundConfig.pop("files" if "minfiles" in userConfig else "minfiles", None) 
 
 def showHeader(string):
     """
