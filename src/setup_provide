@@ -112,7 +112,7 @@ def create_testset(assign, files, courseId, assignId):
         If an existing testset is present, changes are merged into existing
     """
     # TODO make this relative to this script
-    templateTestset = str(BASEDIR / "tests/setup-provide/bin/setup_testset")
+    templateTestset = str(Path(__file__).parent / "bin/setup_testset")
     testset = BASEDIR / ("screening/testsets/" + assign)
     # make a tempfile if a testset already exists
     tempFile = NamedTemporaryFile() if testset.exists() else None
