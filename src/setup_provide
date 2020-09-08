@@ -40,7 +40,7 @@ def main(
     # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
     # any args of that type in an existing config.
     if any(key in userConfig for key in ["files", "minfiles"]):
-        foundConfig.pop("files" if "minfiles" in userConfig else "minfiles", None) 
+        foundConfig.pop("minfiles" if "files" in userConfig else "files", None)
 
     newConfig = {
         **{
