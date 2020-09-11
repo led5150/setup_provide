@@ -54,8 +54,8 @@ a text editor for you to confirm/edit the changes the program has made.
 Conveniently, if you use vscode, we launch that!  Otherwise we launch vim.
 
 The editor launches:
-  a. After the new configuration has been added to assingments.conf
-  b. After the new testset has been created or updated.
+  1. After the new configuration has been added to assingments.conf
+  2. After the new testset has been created or updated.
 
 
   
