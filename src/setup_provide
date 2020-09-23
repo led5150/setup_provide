@@ -20,10 +20,12 @@ BASEDIR = Path("/comp/" + str(COURSE) + "/grading")
 ASSIGN_CONF = BASEDIR / "assignments.conf"
 GROUP = "grade15"
 MAXLATEDAYS = 2
+CHECKFILES = "screening/bin/check_files"
 
 
 def main(
-    assign, duedate, duetime, minfiles, files, reqFiles, submissions, status
+    assign, duedate, duetime, minfiles, files, reqFiles, submissions, status,
+    prepare
 ):
     userConfig = {
         k: v
@@ -33,33 +35,34 @@ def main(
 
     TESTSET = BASEDIR / ("screening/testsets/" + assign)
     EXCEPTIONS = BASEDIR / (assign + "/exceptions.conf")
-    foundConfig, region = getLastWhere(
+    prevConfig, region = getLastWhere(
         ASSIGN_CONF,
         re.compile(r'\bassign=%s\b' % assign).search
     )
     # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
     # any args of that type in an existing config.
     if any(key in userConfig for key in ["files", "minfiles"]):
-        foundConfig.pop("minfiles" if "files" in userConfig else "files", None)
+        prevConfig.pop("minfiles" if "files" in userConfig else "files", None)
 
-    newConfig = {
-        **{
-            "prepare": "screening/bin/check_files"
-        },
-        **foundConfig,
-        **userConfig
-    }
+    newConfig = {**prevConfig, **userConfig}
 
     showHeader("Configuring assignment.conf")
     addToConfFile(newConfig, ASSIGN_CONF, *region)
     launch_editor(ASSIGN_CONF, region[0])
 
-    showHeader("Setting up gradescope assignment")
-    courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
+    # Need to update to reflect any changes
+    newConfig, _ = getLastWhere(
+        ASSIGN_CONF,
+        re.compile(r'\bassign=%s\b' % assign).search
+    )
 
-    showHeader("Configuring testset")
-    create_testset(assign, reqFiles, courseId, assignId)
-    launch_editor(TESTSET)
+    if newConfig.get("prepare", None) == CHECKFILES:
+        showHeader("Setting up gradescope assignment")
+        courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
+
+        showHeader("Configuring testset")
+        create_testset(assign, reqFiles, courseId, assignId)
+        launch_editor(TESTSET)
 
     showHeader("Running prozac (creates folder for submissions)")
     prozac(COURSE, assign)
@@ -85,7 +88,7 @@ def add_exception(EXCEPTIONS):
     """
         adds exception for mkorma01 account to allow for testing
     """
-    TESTACCOUNT="mkorma01"
+    TESTACCOUNT = "mkorma01"
     foundConfig, region = getLastWhere(
         EXCEPTIONS,
         re.compile(r'\blogin=%s\b' % TESTACCOUNT).search
@@ -135,8 +138,8 @@ def create_testset(assign, files, courseId, assignId):
     if tempFile:
         subprocess.run(
             [
-                "git", "merge-file", str(testset), templateTestset, newTestset,
-                "--theirs"
+                "git", "merge-file",
+                str(testset), templateTestset, newTestset, "--theirs"
             ]
         )
         tempFile.close()
@@ -353,6 +356,11 @@ if __name__ == "__main__":
             "on",
             "off",
         ]
+    )
+    parser.add_argument(
+        '--prepare',
+        help=
+        "Script run in submission dir by provide. Submission fails if returns non-zero",
     )
     parser.add_argument('reqFiles', metavar='files', nargs='*',\
                         help='Names of required files.')
