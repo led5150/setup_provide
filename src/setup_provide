@@ -12,7 +12,16 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
 
-from gradescope_web import GradescopeSession
+try:
+    from gradescope_web import GradescopeSession
+except ImportError:
+    source = "git+https://github.com/kedestin/GradescopeWeb.git"
+    print(
+        "This script needs a package to talk to gradescope. Please install with:\n"
+    )
+    print("/usr/bin/env python3 -m pip install --user " + source)
+    exit(1)
+
 from termcolor import colored
 
 COURSE = 15
@@ -246,7 +255,6 @@ def setupLegacyFolders(assign):
         shutil.chown(str(testdir), group=GROUP)
     except PermissionError as e:
         print("chgrp failed: " + str(e))
-
 
 
 def prozac(course, assign):
