@@ -239,10 +239,14 @@ def setupLegacyFolders(assign):
         Not currently in use, but set up as a fallback
     """
     testdir = BASEDIR / ('tests/' + assign)
-    for x in ["bin", "copy", "cpp", "input", "output", "makefile"]:
-        (testdir / x).mkdir(parents=True, exist_ok=True)
-        shutil.chown(str(testdir / x), group=GROUP)
-    shutil.chown(str(testdir), group=GROUP)
+    try:
+        for x in ["bin", "copy", "cpp", "input", "output", "makefile"]:
+            (testdir / x).mkdir(parents=True, exist_ok=True)
+            shutil.chown(str(testdir / x), group=GROUP)
+        shutil.chown(str(testdir), group=GROUP)
+    except PermissionError as e:
+        print("chgrp failed: " + str(e))
+
 
 
 def prozac(course, assign):
