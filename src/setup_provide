@@ -217,7 +217,7 @@ def launch_editor(path, line_num=0):
 
     if not shutil.which("code"):
         sleep(3)
-        cmd = ["vim", "+" + str(line_num), path]
+        cmd = ["vim", "+" + str(line_num), str(path)]
 
     subprocess.run(cmd)
 
