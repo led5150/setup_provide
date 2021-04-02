@@ -33,12 +33,14 @@ CHECKFILES = "screening/bin/check_files"
 
 
 def main(
-    assign, duedate, duetime, minfiles, files, reqFiles, submissions, status,
+    assign, duedate, duetime, gs, minfiles, files, reqFiles, submissions, status,
     prepare
 ):
+    gs = str2bool(gs)
+    
     userConfig = {
         k: v
-        for k, v in locals().items() if v is not None and k != "reqFiles"
+        for k, v in locals().items() if v is not None and k != "reqFiles" and k != "gs"
     }
     os.umask(0o002)
 
@@ -66,12 +68,19 @@ def main(
     )
 
     if newConfig.get("prepare", None) == CHECKFILES:
-        showHeader("Setting up gradescope assignment")
-        courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
+        if str2bool(gs):
+            showHeader("Setting up gradescope assignment")
+            courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
 
-        showHeader("Configuring testset")
-        create_testset(assign, reqFiles, courseId, assignId)
-        launch_editor(TESTSET)
+            showHeader("Configuring testset")
+            create_testset(assign, reqFiles, courseId, assignId)
+            launch_editor(TESTSET)
+        else:
+            print("did not create assingment")
+            showHeader("Configuring testset")
+            create_testset(assign, reqFiles, "", "", False)
+            launch_editor(TESTSET)
+
 
     showHeader("Running prozac (creates folder for submissions)")
     prozac(COURSE, assign)
@@ -80,6 +89,17 @@ def main(
     setupLegacyFolders(assign)
 
     add_exception(EXCEPTIONS)
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def showHeader(string):
@@ -116,7 +136,7 @@ def add_exception(EXCEPTIONS):
     addToConfFile(newConfig, EXCEPTIONS, *region)
 
 
-def create_testset(assign, files, courseId, assignId):
+def create_testset(assign, files, courseId, assignId, gradescope=True):
     """
         Copies template testset into testset directory.
         Replaces some placeholder strings in template with appropriate
@@ -134,15 +154,26 @@ def create_testset(assign, files, courseId, assignId):
     shutil.chown(newTestset, group=GROUP)
     os.chmod(newTestset, 0o770)
     # edit testset
-    replacements = [
-        arg for key, val in {
-            "ASSIGN_NAME": assign,
-            "REQUIRED_FILES": ' '.join(files),
-            "COURSE_ID": courseId,
-            "ASSIGNMENT_ID": assignId
-        }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
-    ]
-    subprocess.run(["sed", "-i", *replacements, newTestset])
+    if gradescope:
+        replacements = [
+            arg for key, val in {
+                "ASSIGN_NAME": assign,
+                "REQUIRED_FILES": ' '.join(files),
+                "COURSE_ID": courseId,
+                "ASSIGNMENT_ID": assignId
+            }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
+        ]
+        subprocess.run(["sed", "-i", *replacements, newTestset])
+    else:
+        replacements = [
+            arg for key, val in {
+                "ASSIGN_NAME": assign,
+                "REQUIRED_FILES": ' '.join(files),
+                "\s*(WARN|FAIL)\s+submit_to_gradescope.py": "#WARN submit_to_gradescope.py"
+            }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
+        ]
+        subprocess.run(["sed", "-i", "-E", *replacements, newTestset])
+
 
     if tempFile:
         subprocess.run(
@@ -297,6 +328,8 @@ def verifyDateTime(dtFormat):
     return verifier
 
 
+
+
 def getGradescopeIDs(assign, duedate, duetime):
     g = GradescopeSession()
     dueDateTime = datetime.strptime(duedate + " " + duetime,
@@ -354,6 +387,12 @@ if __name__ == "__main__":
         dest='duetime',
         help='Time in form of HH:MM e.g. 15:00',
         type=verifyDateTime("%H:%M")
+    )
+    requiredArgs.add_argument(
+        '-gs',
+        required=True,
+        dest='gs',
+        help='Whether or not to create a corresponding Gradescope assigment'
     )
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--minfiles', help="Minimum number of files required")
