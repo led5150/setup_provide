@@ -36,8 +36,9 @@ def main(
     assign, duedate, duetime, gs, minfiles, files, reqFiles, submissions, status,
     prepare
 ):
+    # Converts gs Arg passed on commandline to a boolean.
     gs = str2bool(gs)
-    
+
     userConfig = {
         k: v
         for k, v in locals().items() if v is not None and k != "reqFiles" and k != "gs"

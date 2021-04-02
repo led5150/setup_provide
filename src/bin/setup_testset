@@ -7,17 +7,19 @@
 #
 #                * cmd can be any unix command OR a built-in
 #                * the built-ins are
-#                     require      [@fail_script] filename ...
-#                                  asserts that all listed files are present 
-#                                  runs fail_script if not
-#                     not_allowed  shell-wildcard-pattern
-#                                  checks that files matching 
-#                     allow        filename ...
-#                     filetype     shell-wildcard-pattern RE
-#                     path_pre     string
-#                                  Appends string to front of path
-#                     path_post    string
-#                                  Appends string to front of path
+#                     require          [@fail_script] filename ...
+#                                      asserts that all listed files are present 
+#                                      runs fail_script if not
+#                     compile_student  checks if a student submission compiles.
+                                       See below for usage details.
+#                     not_allowed      shell-wildcard-pattern
+#                                      checks that files matching 
+#                     allow            filename ...
+#                     filetype         shell-wildcard-pattern RE
+#                     path_pre         string
+#                                      Appends string to front of path
+#                     path_post        string
+#                                      Appends string to front of path
 #
 # (complete documentation found in $GRADINGROOT/screening/bin/check_files)
 # 
