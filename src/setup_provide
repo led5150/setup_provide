@@ -36,7 +36,7 @@ def main(
     assign, duedate, duetime, gs, minfiles, files, reqFiles, submissions, status,
     prepare
 ):
-    # Converts gs Arg passed on commandline to a boolean.
+    # Converts 'gs' arg passed on commandline to a boolean.
     gs = str2bool(gs)
 
     userConfig = {
@@ -51,6 +51,7 @@ def main(
         ASSIGN_CONF,
         re.compile(r'\bassign=%s\b' % assign).search
     )
+
     # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
     # any args of that type in an existing config.
     if any(key in userConfig for key in ["files", "minfiles"]):
@@ -174,7 +175,10 @@ def create_testset(assign, files, courseId, assignId, gradescope=True):
             }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
         ]
         subprocess.run(["sed", "-i", "-E", *replacements, newTestset])
-
+    
+    # Determines if the assignment is a lab, if so, uses 'sed' to comment out
+    # token checks
+    isLab(assign, newTestset)
 
     if tempFile:
         subprocess.run(
@@ -184,6 +188,14 @@ def create_testset(assign, files, courseId, assignId, gradescope=True):
             ]
         )
         tempFile.close()
+
+def isLab(assign, testset):
+    lab = (assign[0:3])
+ 
+    if lab == "lab":
+        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
+        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
+        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
 
 
 def getEntireConfig(fileIterator):
@@ -373,7 +385,10 @@ if __name__ == "__main__":
     )
     requiredArgs = parser.add_argument_group('required arguments')
     requiredArgs.add_argument(
-        '-a', required=True, dest='assign', help='Assignment name e.g. hw1'
+        '-a', 
+        required=True,
+        dest='assign',
+        help='Assignment name e.g. hw1'
     )
     requiredArgs.add_argument(
         '-d',
