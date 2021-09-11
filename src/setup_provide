@@ -171,7 +171,7 @@ def create_testset(assign, files, courseId, assignId, gradescope=True):
             arg for key, val in {
                 "ASSIGN_NAME": assign,
                 "REQUIRED_FILES": ' '.join(files),
-                "\s*(WARN|FAIL)\s+submit_to_gradescope.py": "#WARN submit_to_gradescope.py"
+                "\s*(WARN|FAIL)\s+submit_to_gradescope.py": "#FAIL submit_to_gradescope.py"
             }.items() for arg in ['-e', 's/{0}/{1}/g'.format(key, val)]
         ]
         subprocess.run(["sed", "-i", "-E", *replacements, newTestset])
@@ -426,6 +426,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--prepare',
+        default="screening/bin/check_files",
         help=
         "Script run in submission dir by provide. Submission fails if returns non-zero",
     )
