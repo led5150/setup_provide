@@ -78,7 +78,7 @@ def main(
             create_testset(assign, reqFiles, courseId, assignId)
             launch_editor(TESTSET)
         else:
-            print("did not create assingment")
+            print("Did not create a Gradescope assingment")
             showHeader("Configuring testset")
             create_testset(assign, reqFiles, "", "", False)
             launch_editor(TESTSET)
@@ -214,7 +214,7 @@ def getLastWhere(conffile, predicate):
     """
         Returns last config in .conf file accepted by the predicate function
 
-        Ex. in assignment.conf if predicate accepts config where assign=hw4:
+        Ex. in assignments.conf if predicate accepts config where assign=hw4:
             assign=hw4 submissions=5 duedate=3/11
             assign=hw4 submissions=9999 duedate=12/25 <--- returned
 
@@ -356,7 +356,7 @@ def getGradescopeIDs(assign, duedate, duetime):
     course = next(
         (
             c for c in g.classes if c.role == "instructor" and
-            c.name == "Comp 15" and c.semester == "Spring 2021"
+            c.name == "CS 15" and c.semester == "Fall 2021"
         ), None
     )
 
