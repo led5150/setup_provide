@@ -22,9 +22,14 @@ FAIL	token_check
 WARN	echo Token History:
 WARN    tms show $STUDENT
 
+# Use late_check if the assignment is a lab, or you otherwise want to check 
+# for lateness, but not use up student tokens.
+# FAIL late_check
+
 FAIL	require	REQUIRED_FILES
 
-
+# WARN echo "======= Attempting to Complie Your Submission ======="
+# WARN echo "Please be patient, this might take some time..."
 # Usage: compile_student [--assert-exec=EXEC_NAME] compilationCMD ...
 
 
