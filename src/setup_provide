@@ -196,7 +196,8 @@ def isLab(assign, testset):
         subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
         subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
         subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
-
+        return True
+    return False
 
 def getEntireConfig(fileIterator):
     """
