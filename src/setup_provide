@@ -78,7 +78,7 @@ def main(
             create_testset(assign, reqFiles, courseId, assignId)
             launch_editor(TESTSET)
         else:
-            print("Did not create a Gradescope assingment")
+            print("Did not create a Gradescope assignment")
             showHeader("Configuring testset")
             create_testset(assign, reqFiles, "", "", False)
             launch_editor(TESTSET)
