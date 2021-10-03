@@ -135,7 +135,7 @@ def add_exception(EXCEPTIONS):
         }
     }
 
-    addToConfFile(newConfig, EXCEPTIONS, *region)
+    addToConfFile(newConfig, EXCEPTIONS, *region, isExceptionsConf=True)
 
 
 def create_testset(assign, files, courseId, assignId, gradescope=True):
@@ -242,12 +242,17 @@ def config2dict(config):
     return dict(field.split("=", 1) for field in config.split())
 
 
-def dict2config(configDict):
+def dict2config(configDict, isExceptionsConf=False):
     updated_config = ""
-    for field, value in sorted(configDict.items(), key=lambda x: x[0]):
-        if field == "prepare":
-            updated_config += "\\\n\t"
-        updated_config += field + "=" + value + " "
+    if not isExceptionsConf:
+        for field, value in sorted(configDict.items(), key=lambda x: x[0]):
+            if field == "prepare":
+                updated_config += "\\\n\t"
+            updated_config += field + "=" + value + " "
+    else:
+        for field, value in configDict.items():
+            updated_config += field + "=" + value + " "
+
     return updated_config
 
 
@@ -266,11 +271,11 @@ def launch_editor(path, line_num=0):
     subprocess.run(cmd)
 
 
-def addToConfFile(configDict, conffile, start, end):
+def addToConfFile(configDict, conffile, start, end, isExceptionsConf=False):
     """
         adds config to .conf file
     """
-    config = dict2config(configDict)
+    config = dict2config(configDict, isExceptionsConf=isExceptionsConf)
 
     # Assignment exists, so we are overwritting with our new config
     with Path(conffile).open() as f:
