@@ -30,26 +30,29 @@ ASSIGN_CONF = BASEDIR / "assignments.conf"
 GROUP = "grade15"
 MAXLATEDAYS = 2
 CHECKFILES = "screening/bin/check_files"
-
+notConfigVars = ["reqFiles", "gs", "assign_type"]
 
 def main(
-    assign, duedate, duetime, gs, minfiles, files, reqFiles, submissions, status,
+    assign, duedate, duetime, gs, assign_type, minfiles, files, reqFiles, submissions, status,
     prepare
 ):
     # Converts 'gs' arg passed on commandline to a boolean.
     gs = str2bool(gs)
 
+
     userConfig = {
         k: v
-        for k, v in locals().items() if v is not None and k != "reqFiles" and k != "gs"
+        for k, v in locals().items() if v is not None and k not in notConfigVars
     }
+    print(userConfig)
     os.umask(0o002)
 
     TESTSET = BASEDIR / ("screening/testsets/" + assign)
     EXCEPTIONS = BASEDIR / (assign + "/exceptions.conf")
     prevConfig, region = getLastWhere(
         ASSIGN_CONF,
-        re.compile(r'\bassign=%s\b' % assign).search
+        re.compile(r'\bassign=%s\b' % assign).search,
+        assign_type=assign_type
     )
 
     # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
@@ -66,7 +69,8 @@ def main(
     # Need to update to reflect any changes
     newConfig, _ = getLastWhere(
         ASSIGN_CONF,
-        re.compile(r'\bassign=%s\b' % assign).search
+        re.compile(r'\bassign=%s\b' % assign).search,
+        assign_type=assign_type
     )
 
     if newConfig.get("prepare", None) == CHECKFILES:
@@ -75,12 +79,12 @@ def main(
             courseId, assignId = getGradescopeIDs(assign, duedate, duetime)
 
             showHeader("Configuring testset")
-            create_testset(assign, reqFiles, courseId, assignId)
+            create_testset(assign, assign_type, reqFiles, courseId, assignId)
             launch_editor(TESTSET)
         else:
             print("Did not create a Gradescope assignment")
             showHeader("Configuring testset")
-            create_testset(assign, reqFiles, "", "", False)
+            create_testset(assign, assign_type, reqFiles, "", "", False)
             launch_editor(TESTSET)
 
 
@@ -101,7 +105,7 @@ def str2bool(v):
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError('Boolean value expected after -gs flag.')
 
 
 def showHeader(string):
@@ -122,7 +126,8 @@ def add_exception(EXCEPTIONS):
     TESTACCOUNT = "mkorma01"
     foundConfig, region = getLastWhere(
         EXCEPTIONS,
-        re.compile(r'\blogin=%s\b' % TESTACCOUNT).search
+        re.compile(r'\blogin=%s\b' % TESTACCOUNT).search,
+        assign_type=None
     )
     newConfig = {
         **foundConfig,
@@ -138,7 +143,7 @@ def add_exception(EXCEPTIONS):
     addToConfFile(newConfig, EXCEPTIONS, *region, isExceptionsConf=True)
 
 
-def create_testset(assign, files, courseId, assignId, gradescope=True):
+def create_testset(assign, assign_type, files, courseId, assignId, gradescope=True):
     """
         Copies template testset into testset directory.
         Replaces some placeholder strings in template with appropriate
@@ -178,7 +183,10 @@ def create_testset(assign, files, courseId, assignId, gradescope=True):
     
     # Determines if the assignment is a lab, if so, uses 'sed' to comment out
     # token checks
-    isLab(assign, newTestset)
+    # isLab(assign, newTestset)
+    if assign_type == "lab":
+        print("ITS A LABBBBBBBBB")
+        labTestsetEdits(testset)
 
     if tempFile:
         subprocess.run(
@@ -189,13 +197,11 @@ def create_testset(assign, files, courseId, assignId, gradescope=True):
         )
         tempFile.close()
 
-def isLab(assign, testset):
-    lab = (assign[0:3])
- 
-    if lab == "lab":
-        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
-        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
-        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
+
+def labTestsetEdits(testset):
+    subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
+    subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
+    subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
 
 
 def getEntireConfig(fileIterator):
@@ -210,7 +216,7 @@ def getEntireConfig(fileIterator):
     return end, line + suffix
 
 
-def getLastWhere(conffile, predicate):
+def getLastWhere(conffile, predicate, assign_type=None):
     """
         Returns last config in .conf file accepted by the predicate function
 
@@ -232,9 +238,34 @@ def getLastWhere(conffile, predicate):
 
             if predicate(conf):
                 foundConfig = (config2dict(conf), (lineNum, endNum))
-
-    eofNum = max(lineNum, endNum) + 1
-    return foundConfig if foundConfig else ({}, (eofNum, eofNum))
+    if not foundConfig:
+        inSection = False
+        prevLine = ""
+        if assign_type == "hw":
+            with Path(conffile).open() as f:
+                fileIter = enumerate(f, 1)
+                for lineNum, line in fileIter:
+                    if line[0:13] == "### Homeworks":
+                        inSection = True
+                    if inSection and prevLine.isspace() and line.isspace():
+                        return ({}, (lineNum, lineNum))
+                    prevLine = line
+        elif assign_type == "lab":
+            with Path(conffile).open() as f:
+                fileIter = enumerate(f, 1)
+                for lineNum, line in fileIter:
+                    if line[0:8] == "### Labs":
+                        inSection = True
+                    if inSection and prevLine.isspace() and line.isspace():
+                        return ({}, (lineNum, lineNum))
+                    prevLine = line
+        else:
+            eofNum = max(lineNum, endNum) + 1
+            return  ({}, (eofNum, eofNum))
+    else:
+        return foundConfig
+    # eofNum = max(lineNum, endNum) + 1
+    # return foundConfig if foundConfig else ({}, (eofNum, eofNum))
 
 
 def config2dict(config):
@@ -386,7 +417,7 @@ def getGradescopeIDs(assign, duedate, duetime):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Helps you set up an assignment'
+        description='Helps you set up provide for CS 15'
     )
     requiredArgs = parser.add_argument_group('required arguments')
     requiredArgs.add_argument(
@@ -413,7 +444,14 @@ if __name__ == "__main__":
         '-gs',
         required=True,
         dest='gs',
-        help='Whether or not to create a corresponding Gradescope assigment'
+        help='Whether or not to create a corresponding Gradescope assignment'
+    )
+    requiredArgs.add_argument(
+        '-type',
+        required=True,
+        dest='assign_type',
+        choices=["hw", "lab"],
+        help="The type of assignment. Can be one of 'hw' or 'lab'"
     )
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--minfiles', help="Minimum number of files required")
