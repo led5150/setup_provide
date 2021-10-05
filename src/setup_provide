@@ -44,7 +44,6 @@ def main(
         k: v
         for k, v in locals().items() if v is not None and k not in notConfigVars
     }
-    print(userConfig)
     os.umask(0o002)
 
     TESTSET = BASEDIR / ("screening/testsets/" + assign)
@@ -54,6 +53,7 @@ def main(
         re.compile(r'\bassign=%s\b' % assign).search,
         assign_type=assign_type
     )
+    
 
     # Makes "files" and "minfiles" mutually exclusive. Prefers user args over
     # any args of that type in an existing config.
@@ -183,10 +183,10 @@ def create_testset(assign, assign_type, files, courseId, assignId, gradescope=Tr
     
     # Determines if the assignment is a lab, if so, uses 'sed' to comment out
     # token checks
-    # isLab(assign, newTestset)
     if assign_type == "lab":
-        print("ITS A LABBBBBBBBB")
         labTestsetEdits(testset)
+    if len(files) == 0:
+        subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*require.*/# FAIL require/g", testset])
 
     if tempFile:
         subprocess.run(
@@ -202,6 +202,7 @@ def labTestsetEdits(testset):
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
+    subprocess.run(["sed", "-i", "-E","s/(FAIL|WARN)\s*time_spent.*\$HW/# FAIL time_spent $STUDENT $HW/g", testset])
 
 
 def getEntireConfig(fileIterator):
@@ -237,35 +238,28 @@ def getLastWhere(conffile, predicate, assign_type=None):
             endNum, conf = getEntireConfig(chain([(lineNum, line)], fileIter))
 
             if predicate(conf):
-                foundConfig = (config2dict(conf), (lineNum, endNum))
+                foundConfig = (config2dict(conf), (lineNum, endNum + 1))
+
     if not foundConfig:
-        inSection = False
-        prevLine = ""
         if assign_type == "hw":
             with Path(conffile).open() as f:
                 fileIter = enumerate(f, 1)
                 for lineNum, line in fileIter:
-                    if line[0:13] == "### Homeworks":
-                        inSection = True
-                    if inSection and prevLine.isspace() and line.isspace():
-                        return ({}, (lineNum, lineNum))
-                    prevLine = line
+                    if re.search(r"^#{3}.+Homeworks.*", line):
+                        return ({}, (lineNum + 1, lineNum + 1))
         elif assign_type == "lab":
             with Path(conffile).open() as f:
                 fileIter = enumerate(f, 1)
                 for lineNum, line in fileIter:
-                    if line[0:8] == "### Labs":
-                        inSection = True
-                    if inSection and prevLine.isspace() and line.isspace():
-                        return ({}, (lineNum, lineNum))
-                    prevLine = line
-        else:
-            eofNum = max(lineNum, endNum) + 1
-            return  ({}, (eofNum, eofNum))
+                    if re.search(r"^#{3}.+Labs.*", line):
+                        return ({}, (lineNum + 1, lineNum + 1))
+        # If we get here and haven't found our "### (Homeworks|Labs)"" flag, 
+        # just append the new config to the end of the file.
+        eofNum = max(lineNum, endNum) + 1
+        return  ({}, (eofNum, eofNum))
     else:
         return foundConfig
-    # eofNum = max(lineNum, endNum) + 1
-    # return foundConfig if foundConfig else ({}, (eofNum, eofNum))
+
 
 
 def config2dict(config):
@@ -316,8 +310,8 @@ def addToConfFile(configDict, conffile, start, end, isExceptionsConf=False):
         # Add newline if file doesn't end with a newline
         if start > len(data) and not data[-1].endswith("\n"):
             f.write("\n")
-        f.write(config + "\n")
-        f.writelines(data[end:])
+        f.write(config + "\n\n")
+        f.writelines(data[end - 1:])
 
 
 def setupLegacyFolders(assign):
