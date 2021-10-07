@@ -238,21 +238,21 @@ def getLastWhere(conffile, predicate, assign_type=None):
             endNum, conf = getEntireConfig(chain([(lineNum, line)], fileIter))
 
             if predicate(conf):
-                foundConfig = (config2dict(conf), (lineNum, endNum + 1))
+                foundConfig = (config2dict(conf), (lineNum, endNum))
 
     if not foundConfig:
         if assign_type == "hw":
             with Path(conffile).open() as f:
                 fileIter = enumerate(f, 1)
                 for lineNum, line in fileIter:
-                    if re.search(r"^#{3}.+Homeworks.*", line):
-                        return ({}, (lineNum + 1, lineNum + 1))
+                    if re.search(r"^#{3}.*Homeworks.*", line):
+                        return ({}, (lineNum + 1, lineNum))
         elif assign_type == "lab":
             with Path(conffile).open() as f:
                 fileIter = enumerate(f, 1)
                 for lineNum, line in fileIter:
-                    if re.search(r"^#{3}.+Labs.*", line):
-                        return ({}, (lineNum + 1, lineNum + 1))
+                    if re.search(r"^#{3}.*Labs.*", line):
+                        return ({}, (lineNum + 1, lineNum))
         # If we get here and haven't found our "### (Homeworks|Labs)"" flag, 
         # just append the new config to the end of the file.
         eofNum = max(lineNum, endNum) + 1
@@ -311,7 +311,7 @@ def addToConfFile(configDict, conffile, start, end, isExceptionsConf=False):
         if start > len(data) and not data[-1].endswith("\n"):
             f.write("\n")
         f.write(config + "\n\n")
-        f.writelines(data[end - 1:])
+        f.writelines(data[end:])
 
 
 def setupLegacyFolders(assign):
