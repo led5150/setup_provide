@@ -135,7 +135,7 @@ def add_exception(EXCEPTIONS):
             "login": TESTACCOUNT,
             "status": "on",
             "duedate": "12/25",
-            "duetime": "11:59pm",
+            "duetime": "23:59",
             "submissions": "10000"
         }
     }
@@ -181,10 +181,11 @@ def create_testset(assign, assign_type, files, courseId, assignId, gradescope=Tr
         ]
         subprocess.run(["sed", "-i", "-E", *replacements, newTestset])
     
-    # Determines if the assignment is a lab, if so, uses 'sed' to comment out
-    # token checks
+    # Determines if the assignment is a lab and comments out certain configs
+    # we don't need from default testset
     if assign_type == "lab":
         labTestsetEdits(testset)
+    # if no files are specified, comment out 'require' from default testset.
     if len(files) == 0:
         subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*require.*/# FAIL require/g", testset])
 

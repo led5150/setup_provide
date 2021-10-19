@@ -25,7 +25,7 @@ WARN    tms show $STUDENT
 # Use late_check if the assignment is a lab, or you otherwise want to check 
 # for lateness, but not use up student tokens.
 
-# FAIL late_check 
+# FAIL time_check 
 
 FAIL	require	REQUIRED_FILES
 
