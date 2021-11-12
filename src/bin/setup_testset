@@ -17,10 +17,7 @@
 #
 # (complete documentation found in $GRADINGROOT/screening/bin/check_files)
 
-# Does token check and shows token history to students
-FAIL	token_check
-WARN	echo Token History:
-WARN    tms show $STUDENT
+
 
 # Use late_check if the assignment is a lab, or you otherwise want to check 
 # for lateness, but not use up student tokens.
@@ -51,3 +48,8 @@ FAIL submit_to_gradescope.py -c COURSE_ID \
 # assignment.
 
 FAIL time_spent $STUDENT $HW
+
+# Does token check and shows token history to students
+FAIL	token_check
+WARN	echo Token History:
+WARN    tms show $STUDENT
