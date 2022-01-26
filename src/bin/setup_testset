@@ -19,21 +19,26 @@
 
 
 
-# Use late_check if the assignment is a lab, or you otherwise want to check 
+# Use time_check if the assignment is a lab, or you otherwise want to check 
 # for lateness, but not use up student tokens.
-
 # FAIL time_check 
 
 FAIL	require	REQUIRED_FILES
 
 
-# Uncomment the 'echo' lines below and compile_student if you want to 
-# ensure that student submissions compile before allowing them to provide.
+# Uncomment the 'WARN echo' lines below and 'FAIL compile_student' if you want 
+# to ensure that student submissions compile before allowing them to provide.
 
 # WARN echo ======= Attempting to Compile Your Submission =======
 # WARN echo Please be patient, this might take some time...
 # Usage: compile_student [--assert-exec=EXEC_NAME] compilationCMD ...
 # FAIL compile_student
+
+
+# Does token check and shows token history to students
+FAIL	token_check
+WARN	echo Token History:
+WARN    tms show $STUDENT
 
 
 # WARN echo ======= Submitting to Gradescope =======
@@ -44,12 +49,7 @@ FAIL submit_to_gradescope.py -c COURSE_ID \
                              --token $GRADING_ROOT/screening/bin/.gradescope_token
 
 
-# Use time_spent if you want students to long the number of hours spent on an
+
+# Use time_spent if you want students to log the number of hours spent on an
 # assignment.
-
 FAIL time_spent $STUDENT $HW
-
-# Does token check and shows token history to students
-FAIL	token_check
-WARN	echo Token History:
-WARN    tms show $STUDENT
