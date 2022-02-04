@@ -456,6 +456,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '--status',
         help="Status of assignment. Default is 'off'",
+        required=True,
         default='off',
         choices=[
             "on",
