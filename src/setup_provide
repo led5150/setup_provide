@@ -201,6 +201,7 @@ def create_testset(assign, assign_type, files, courseId, assignId, gradescope=Tr
 
 def labTestsetEdits(testset):
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*token_check\s*/# FAIL token_check/g", testset])
+    subprocess.run(["sed", "-i", "-E","s/^#\s*(WARN|FAIL)\s*time_check/FAIL token_check/g", testset])
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*Token\s*History:\s*/# WARN echo Token History:/g", testset])
     subprocess.run(["sed", "-i", "-E","s/(WARN|FAIL)\s*.*tms\s*show\s*\$STUDENT/# WARN tms show $STUDENT/g", testset])
     subprocess.run(["sed", "-i", "-E","s/(FAIL|WARN)\s*time_spent.*\$HW/# FAIL time_spent $STUDENT $HW/g", testset])
