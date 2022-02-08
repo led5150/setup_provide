@@ -43,7 +43,7 @@ WARN    tms show $STUDENT
 
 # WARN echo ======= Submitting to Gradescope =======
 # Fail if submission was not submitted to gradescope.
-FAIL submit_to_gradescope.py -c COURSE_ID \
+WARN submit_to_gradescope.py -c COURSE_ID \
                              -a ASSIGNMENT_ID \
                              --logfile .response \
                              --token $GRADING_ROOT/screening/bin/.gradescope_token
@@ -52,4 +52,4 @@ FAIL submit_to_gradescope.py -c COURSE_ID \
 
 # Use time_spent if you want students to log the number of hours spent on an
 # assignment.
-FAIL time_spent $STUDENT $HW
+WARN time_spent $STUDENT $HW
