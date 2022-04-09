@@ -11,6 +11,7 @@ from itertools import chain
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
+from datetime import date
 
 try:
     from gradescope_web import GradescopeSession
@@ -384,11 +385,15 @@ def getGradescopeIDs(assign, duedate, duetime):
 
     hideUntil = dueDateTime + timedelta(days=MAXLATEDAYS)
 
-    # TODO: Refactor out name and semester (no hard coding)
+
+    year     = date.today().year
+    season   = "Spring" if date.today().month < 6 else "Fall"
+    semester = f"{season} {year}"  # Will be something like "Spring 2022"
+
     course = next(
         (
             c for c in g.classes if c.role == "instructor" and
-            c.name == "CS 15" and c.semester == "Spring 2022"
+            c.name == "CS 15" and c.semester == semester
         ), None
     )
 
@@ -401,11 +406,14 @@ def getGradescopeIDs(assign, duedate, duetime):
         assignment = course.create_assignment(
             title=assign,
             totalPoints=0,
-            releaseDate=hideUntil,
+            releaseDate=dueDateTime - timedelta(days=7),
             dueDate=hideUntil,
             manualGrading=True,
             memoryLimit=6144,
-            autograderTimeout=600
+            autograderTimeout=600,
+            allowGithub=False,
+            allowUpload=False,
+            allowBitbucket=False
         )
 
     return course.id, assignment.id
