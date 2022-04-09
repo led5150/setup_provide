@@ -413,7 +413,7 @@ def getGradescopeIDs(assign, duedate, duetime):
             autograderTimeout=600,
             allowGithub=False,
             allowUpload=False,
-            allowBitbucket=False
+            allowBitbucket=True
         )
 
     return course.id, assignment.id
